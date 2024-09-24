@@ -111,7 +111,7 @@ class SimCardInfoPlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
     }
 
     override fun onDetachedFromActivityForConfigChanges() {
-        content = null
+        context = null
     }
 
     override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
@@ -121,7 +121,7 @@ class SimCardInfoPlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
 
     override fun onDetachedFromActivity() {
         channel.setMethodCallHandler(null)
-        content = null
+        context = null
     }
 
     override fun onRequestPermissionsResult(
