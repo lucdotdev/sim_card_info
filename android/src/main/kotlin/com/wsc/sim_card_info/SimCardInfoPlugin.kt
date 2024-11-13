@@ -25,17 +25,12 @@ import io.flutter.plugin.common.PluginRegistry.RequestPermissionsResultListener
 /** SimCardInfoPlugin */
 class SimCardInfoPlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
     RequestPermissionsResultListener {
-    /// The MethodChannel that will the communication between Flutter and native Android
-    ///
-    /// This local reference serves to register the plugin with the Flutter Engine and unregister it
-    /// when the Flutter Engine is detached from the Activity
-    private lateinit var context: Context
+    private var context: Context? = null
     private lateinit var channel: MethodChannel
     private var methodChannelName = "getSimInfo"
 
-    private val result: Result? = null
-    private val permissionEvent: EventSink? = null
-
+    private var result: Result? = null
+    private var permissionEvent: EventSink? = null
 
     override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
         context = flutterPluginBinding.applicationContext
@@ -45,32 +40,34 @@ class SimCardInfoPlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
 
     override fun onMethodCall(call: MethodCall, result: Result) {
         if (call.method == methodChannelName) {
-            result.success(getSimInfo())
+            getSimInfo()?.let {
+                result.success(it)
+            } ?: result.error("NO_CONTEXT", "Context is null", null)
         } else {
             result.notImplemented()
         }
     }
 
-
     @SuppressLint("HardwareIds")
-    private fun getSimInfo(): String {
+    private fun getSimInfo(): String? {
+        val currentContext = context ?: return null
+        
         val simCardInfo = StringWriter()
         val writer = JsonWriter(simCardInfo)
         writer.beginArray()
         val telephonyManager =
-            context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager?
+            currentContext.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager?
         if (telephonyManager == null || ActivityCompat.checkSelfPermission(
-                context,
+                currentContext,
                 Manifest.permission.READ_PHONE_STATE
             ) != PackageManager.PERMISSION_GRANTED
         ) {
-            return ("Permission denied")
+            return "Permission denied"
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val subscriptionManager = context.getSystemService(SubscriptionManager::class.java)
+            val subscriptionManager = currentContext.getSystemService(SubscriptionManager::class.java)
             subscriptionManager?.activeSubscriptionInfoList?.let { subscriptionInfoList ->
-               
                 for (info in subscriptionInfoList) {
                     writer.beginObject()
                     writer.name("carrierName").value(info.carrierName.toString())
@@ -80,13 +77,10 @@ class SimCardInfoPlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
                     writer.name("countryIso").value(info.countryIso.toString())
                     writer.name("countryPhonePrefix").value(info.countryIso.toString())
                     writer.endObject()
-                   
                 }
-                writer.endArray()
-                
             }
         } else {
-             writer.beginObject()
+            writer.beginObject()
             writer.name("carrierName").value(telephonyManager.networkOperatorName.toString())
             writer.name("displayName").value(telephonyManager.simOperatorName.toString())
             writer.name("slotIndex").value(telephonyManager.simSerialNumber.toString())
@@ -94,12 +88,10 @@ class SimCardInfoPlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
             writer.name("countryIso").value(telephonyManager.simCountryIso.toString())
             writer.name("countryPhonePrefix").value(telephonyManager.simCountryIso.toString())
             writer.endObject()
-            writer.endArray()
         }
-        println("simCardInfo mowne: $simCardInfo")
+        writer.endArray()
         return simCardInfo.toString()
     }
-
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         channel.setMethodCallHandler(null)
@@ -129,7 +121,6 @@ class SimCardInfoPlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
         permissions: Array<out String>,
         grantResults: IntArray
     ): Boolean {
-        // If request is cancelled, the result arrays are empty.
         if (requestCode == 0) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 permissionEvent?.success(true)
@@ -142,7 +133,6 @@ class SimCardInfoPlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
         result?.error("PERMISSION", "onRequestPermissionsResult is not granted", null)
         return false
     }
-
 }
 
 data class SimInfo(
